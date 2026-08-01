@@ -39,6 +39,22 @@ class AuthService
         return $admin;
     }
 
+    /**
+     * v0.2: general-purpose admin-creates-user path (any role except
+     * admin - that stays on createAdmin() above, which has its own
+     * Gate::authorize('createAdmin', ...) check and distinct
+     * 'user.admin_created' audit action since granting admin is more
+     * sensitive than creating a landlord/student account).
+     */
+    public function createUser(User $creator, array $data, RoleEnum $role): User
+    {
+        $user = $this->register($data, $role);
+
+        $this->auditLog->log($creator, 'user.created_by_admin', $user, ['role' => $role->value]);
+
+        return $user;
+    }
+
     private function register(array $data, RoleEnum $role): User
     {
         $user = User::create([

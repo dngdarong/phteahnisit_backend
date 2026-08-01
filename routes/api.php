@@ -109,7 +109,11 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::delete('/rooms/{room}/force', [AdminRoomController::class, 'forceDestroy']);
 
         Route::get('/users', [AdminUserController::class, 'index']);
+        Route::post('/users', [AdminUserController::class, 'store']); // v0.2 - general create, any role
         Route::post('/users/admins', [AdminUserController::class, 'storeAdmin']);
+        Route::get('/users/{user}', [AdminUserController::class, 'show']); // v0.2
+        Route::put('/users/{user}', [AdminUserController::class, 'update']); // v0.2
+        Route::delete('/users/{user}', [AdminUserController::class, 'destroy']); // v0.2 - soft delete
         Route::post('/users/{user}/disable', [AdminUserController::class, 'disable']);
         Route::post('/users/{user}/enable', [AdminUserController::class, 'enable']);
     });

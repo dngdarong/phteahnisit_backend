@@ -11,6 +11,11 @@ class UserPolicy
         return $user->isAdmin();
     }
 
+    public function view(User $user, User $target): bool
+    {
+        return $user->isAdmin();
+    }
+
     public function update(User $user, User $target): bool
     {
         // A user may edit their own profile via ProfileController; this
@@ -21,6 +26,11 @@ class UserPolicy
     public function disable(User $user, User $target): bool
     {
         return $user->isAdmin() && $user->id !== $target->id; // can't disable self
+    }
+
+    public function delete(User $user, User $target): bool
+    {
+        return $user->isAdmin() && $user->id !== $target->id; // can't delete self, same as disable
     }
 
     public function createAdmin(User $user): bool
