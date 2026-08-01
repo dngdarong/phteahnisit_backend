@@ -24,6 +24,8 @@ class Room extends Model
         'district',
         'commune',
         'address',
+        'latitude',
+        'longitude',
         'room_type',
         'available',
         'status',
@@ -33,6 +35,8 @@ class Room extends Model
     {
         return [
             'price' => 'decimal:2',
+            'latitude' => 'decimal:7',
+            'longitude' => 'decimal:7',
             'available' => 'boolean',
             'room_type' => RoomTypeEnum::class,
             'status' => RoomStatusEnum::class,
@@ -47,6 +51,21 @@ class Room extends Model
     public function images(): HasMany
     {
         return $this->hasMany(RoomImage::class)->orderBy('display_order');
+    }
+
+    public function favorites(): HasMany
+    {
+        return $this->hasMany(Favorite::class);
+    }
+
+    public function bookings(): HasMany
+    {
+        return $this->hasMany(Booking::class);
+    }
+
+    public function conversations(): HasMany
+    {
+        return $this->hasMany(Conversation::class);
     }
 
     /** Publicly visible: approved status, regardless of availability. */
@@ -64,6 +83,12 @@ class Room extends Model
     public function scopeSearchable(Builder $query): Builder
     {
         return $query->approved()->where('available', true);
+    }
+
+    /** v0.2 map view: same visibility as search, plus a pinned location. */
+    public function scopeOnMap(Builder $query): Builder
+    {
+        return $query->searchable()->whereNotNull('latitude')->whereNotNull('longitude');
     }
 
     public function scopeInProvince(Builder $query, string $province): Builder

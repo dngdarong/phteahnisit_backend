@@ -21,10 +21,15 @@ class RoomResource extends JsonResource
             'district' => $this->district,
             'commune' => $this->commune,
             'address' => $this->address,
+            'latitude' => $this->latitude !== null ? (float) $this->latitude : null,
+            'longitude' => $this->longitude !== null ? (float) $this->longitude : null,
             'room_type' => $this->room_type->value,
             'available' => $this->available,
             'status' => $this->status->value,
             'images' => RoomImageResource::collection($this->whenLoaded('images')),
+            // Only meaningful (and only loaded) for an authenticated student -
+            // see RoomController's conditional eager-load of the scoped relation.
+            'is_favorited' => $this->when($this->relationLoaded('favorites'), fn () => $this->favorites->isNotEmpty()),
             // Contact info is intentionally public per FRS Room Detail
             // Module (no auth gate on landlord contact for v0.1).
             'landlord' => $this->whenLoaded('landlord', fn () => [

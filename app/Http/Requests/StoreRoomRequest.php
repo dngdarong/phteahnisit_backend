@@ -36,6 +36,8 @@ class StoreRoomRequest extends FormRequest
             'district' => ['required', 'string', 'max:100'],
             'commune' => ['nullable', 'string', 'max:100'],
             'address' => ['required', 'string', 'max:255'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'room_type' => ['required', new Enum(RoomTypeEnum::class)],
             'available' => ['boolean'],
             'images' => ['nullable', 'array', 'max:10'],

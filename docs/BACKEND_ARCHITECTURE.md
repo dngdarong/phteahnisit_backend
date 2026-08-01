@@ -1,4 +1,4 @@
-# phteahnisit — Backend Architecture (v0.1 MVP)
+# phteahnisit — Backend Architecture (v0.1 MVP + v0.2)
 
 ## 1. Setup
 
@@ -129,10 +129,124 @@ everything else → 500 with a generic message in production
 (`APP_DEBUG=false`), matching the FRS Error Rules ("never expose
 technical errors").
 
-## 8. What's deliberately not here
+## 8. What's deliberately not here (v0.1 scope note)
 
-Per the FRS/Business Rules "Future Compatibility" sections: no
+At v0.1, per the FRS/Business Rules "Future Compatibility" sections: no
 Favorites, Booking, Chat, Notifications, Reviews, Payments, or Maps
-code exists anywhere in this package. The schema and route structure
+code existed anywhere in this package. The schema and route structure
 were checked in the prior review turns to confirm none of those need a
-redesign of `users`/`rooms`/`room_images`/`audit_logs` to bolt on later.
+redesign of `users`/`rooms`/`room_images`/`audit_logs` to bolt on later
+— v0.2 (below) is exactly that bolt-on, with no changes to the v0.1
+tables beyond adding `latitude`/`longitude` to `rooms`.
+
+## 9. v0.2 additions — Favorites, Bookings, Chat, Map
+
+Four features, each following the identical layer pattern from section
+3 (thin controller → Form Request → Service → Policy → Resource). No
+new architectural pattern was introduced; the goal was consistency with
+v0.1, not novelty.
+
+### 9.1 Schema
+
+- `rooms.latitude` / `rooms.longitude` — nullable `decimal(10,7)`,
+  indexed together. A landlord isn't required to pin a location; the
+  map endpoint just excludes rooms without coordinates.
+- `favorites` — `(user_id, room_id)`, unique pair, cascade-deletes with
+  either side.
+- `bookings` — `room_id`, `student_id`, `move_in_date`,
+  `duration_months`, `status` (`BookingStatusEnum`: pending / approved
+  / rejected / cancelled). No DB-level uniqueness constraint on
+  `(room_id, student_id)` — a student can have multiple *historical*
+  bookings on the same room (e.g. rejected, then re-applies), just not
+  two simultaneously-pending ones. That's enforced in
+  `BookingService::create` (an explicit existence check), not the
+  schema, because "pending" is a status value, not a row-uniqueness
+  property.
+- `conversations` — one thread per `(room_id, student_id)` pair
+  (unique), `landlord_id` denormalized onto the row so the thread
+  survives independent of `rooms.landlord_id` changing.
+- `messages` — belongs to a conversation and a sender, plus `read_at`.
+
+### 9.2 New Enums, Models, Policies, Services
+
+- `BookingStatusEnum` — same pattern as `RoomStatusEnum`.
+- Models: `Favorite`, `Booking`, `Conversation` (with an
+  `isParticipant(User $user)` helper used by its Policy), `Message`.
+  `Room` gained `favorites()`/`bookings()`/`conversations()`
+  relations and a `scopeOnMap()` (searchable + non-null coordinates).
+- `FavoritePolicy` — `create()` is a student-only role gate (mirrors
+  `RoomPolicy::create`); `delete()` checks the favorite belongs to the
+  requesting user. Landlords/admins are blocked at the API level, not
+  just hidden in the UI — confirmed with the user rather than assumed,
+  since a landlord/admin favoriting a room has no product meaning.
+- `BookingPolicy` — `create()` is student-only; `cancel()` requires
+  both ownership *and* `status === pending`; `moderate()` (used for
+  both approve and reject) requires `user->isLandlord() &&
+  user->id === booking->room->landlord_id` — i.e. bookings are
+  reviewed by the room's own landlord, not the admin queue. This is a
+  deliberate split from room moderation (admin-only): rooms are a
+  platform-quality gate, bookings are a landlord/student negotiation.
+- `ConversationPolicy` — `view()`/`send()` both require
+  `isParticipant()`. Unlike every other policy in this codebase, there
+  is **no admin bypass** — confirmed with the user, since the design
+  bundle's chat spec says "only the two participants," full stop.
+- `FavoriteService::toggle()` — add or remove based on current state,
+  audit-logs `favorite.added` / `favorite.removed`.
+- `BookingService` — `create()` rejects a room that isn't
+  approved+available, and rejects a second pending booking on the same
+  room by the same student (both confirmed decisions, not v0.1-derived
+  rules, since no v0.1 spec covered bookings). `approve()`/`reject()`/
+  `cancel()` all audit-log. Room edits that revert an approved room to
+  pending (`RoomService::update`) do **not** touch existing bookings on
+  that room — a booking already in flight is independent of the room's
+  re-approval status; also a confirmed decision.
+- `ChatService::startOrSend()` — `firstOrCreate` on
+  `(room_id, student_id)`, so a second message from the same student
+  about the same room reuses the existing thread instead of creating a
+  duplicate. `send()` updates `last_message_at`. `markRead()` marks
+  every message *not* sent by the reader as read when they open the
+  thread. No audit logging on individual messages — matching the
+  explicit audit-action list (`booking.*`, `favorite.*` only); chat
+  volume would make per-message audit rows noise, not signal.
+
+### 9.3 Routes and middleware
+
+- `GET /rooms/map` — public, registered **before** `GET /rooms/{room}`
+  (route-order matters: `{room}` would otherwise swallow the literal
+  `map` segment as a room ID lookup).
+- Favorites and student-side Booking routes sit behind
+  `role:student` — same defense-in-depth as v0.1 (route middleware +
+  a second explicit check in the Policy/Service).
+- Landlord-side booking review routes
+  (`/landlord/bookings*`) sit behind `role:landlord`, structured as a
+  dedicated `Api\Landlord\BookingController` — mirrors the existing
+  `Api\Admin\*` controller-per-role-scope pattern rather than
+  overloading the student-facing `BookingController`.
+- Conversation routes sit in the general `auth:sanctum + active` group
+  (no role restriction), because a conversation's participants can be
+  either a student or a landlord — the real boundary is
+  `ConversationPolicy`, resolved from the route-bound `Conversation`.
+
+### 9.4 Permission matrix additions
+
+| Action | Guest | Student | Landlord (own room) | Landlord (other's room) | Admin |
+|---|---|---|---|---|---|
+| Favorite/unfavorite a room | ❌ | ✅ | ❌ | ❌ | ❌ |
+| View own favorites | ❌ | ✅ | — | — | — |
+| Request a booking | ❌ | ✅ | — | — | — |
+| Cancel own pending booking | ❌ | ✅ (own) | — | — | — |
+| Approve/reject a booking | ❌ | ❌ | ✅ | ❌ | ❌ |
+| Message a landlord about a room | ❌ | ✅ (starts thread) | — | — | — |
+| Read/reply in a conversation | ❌ | ✅ (if participant) | ✅ (if participant) | ❌ | ❌ (no bypass) |
+| View rooms with a pinned location | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Set a room's coordinates | ❌ | — | ✅ (own, create/edit) | ❌ | ❌ |
+
+### 9.5 What's still deliberately not here
+
+No payments, reviews/ratings, or a standalone notifications system —
+chat covers its own "new message" signal via `unread_count` on the
+conversation resource, computed on read rather than pushed. No map SDK
+dependency: the map endpoint returns coordinate data; the frontend
+renders it as a pin-list with links out to Google Maps rather than an
+embedded interactive map, per an explicit scope decision to avoid
+adding a new third-party dependency for v0.2.

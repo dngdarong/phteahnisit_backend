@@ -40,6 +40,8 @@ class UpdateRoomRequest extends FormRequest
             'district' => ['sometimes', 'required', 'string', 'max:100'],
             'commune' => ['nullable', 'string', 'max:100'],
             'address' => ['sometimes', 'required', 'string', 'max:255'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'room_type' => ['sometimes', 'required', new Enum(RoomTypeEnum::class)],
             'available' => ['sometimes', 'boolean'],
             'images' => ['nullable', 'array', 'max:10'],
