@@ -155,3 +155,95 @@ test('a student cannot access the landlord booking review endpoints', function (
 
     $this->getJson('/api/landlord/bookings')->assertForbidden();
 });
+
+test('a landlord cannot approve a booking that is already approved', function () {
+    $landlord = User::factory()->landlord()->create();
+    $room = Room::factory()->for($landlord, 'landlord')->create(['status' => 'approved', 'available' => true]);
+    $booking = Booking::factory()->for($room)->approved()->create();
+
+    Sanctum::actingAs($landlord);
+    $response = $this->postJson("/api/landlord/bookings/{$booking->id}/approve");
+
+    $response->assertUnprocessable();
+    $this->assertDatabaseHas('bookings', ['id' => $booking->id, 'status' => 'approved']);
+});
+
+test('a landlord cannot approve a booking that was rejected', function () {
+    $landlord = User::factory()->landlord()->create();
+    $room = Room::factory()->for($landlord, 'landlord')->create(['status' => 'approved', 'available' => true]);
+    $booking = Booking::factory()->for($room)->rejected()->create();
+
+    Sanctum::actingAs($landlord);
+    $this->postJson("/api/landlord/bookings/{$booking->id}/approve")->assertUnprocessable();
+    $this->assertDatabaseHas('bookings', ['id' => $booking->id, 'status' => 'rejected']);
+});
+
+test('a landlord cannot approve a booking that was cancelled', function () {
+    $landlord = User::factory()->landlord()->create();
+    $room = Room::factory()->for($landlord, 'landlord')->create(['status' => 'approved', 'available' => true]);
+    $booking = Booking::factory()->for($room)->cancelled()->create();
+
+    Sanctum::actingAs($landlord);
+    $this->postJson("/api/landlord/bookings/{$booking->id}/approve")->assertUnprocessable();
+    $this->assertDatabaseHas('bookings', ['id' => $booking->id, 'status' => 'cancelled']);
+});
+
+test('a landlord cannot reject a booking that is already approved', function () {
+    $landlord = User::factory()->landlord()->create();
+    $room = Room::factory()->for($landlord, 'landlord')->create(['status' => 'approved', 'available' => true]);
+    $booking = Booking::factory()->for($room)->approved()->create();
+
+    Sanctum::actingAs($landlord);
+    $this->postJson("/api/landlord/bookings/{$booking->id}/reject")->assertUnprocessable();
+    $this->assertDatabaseHas('bookings', ['id' => $booking->id, 'status' => 'approved']);
+});
+
+test('a landlord cannot reject a booking that was already rejected', function () {
+    $landlord = User::factory()->landlord()->create();
+    $room = Room::factory()->for($landlord, 'landlord')->create(['status' => 'approved', 'available' => true]);
+    $booking = Booking::factory()->for($room)->rejected()->create();
+
+    Sanctum::actingAs($landlord);
+    $this->postJson("/api/landlord/bookings/{$booking->id}/reject")->assertUnprocessable();
+});
+
+test('double-approving the same pending booking back to back only the first succeeds', function () {
+    $landlord = User::factory()->landlord()->create();
+    $room = Room::factory()->for($landlord, 'landlord')->create(['status' => 'approved', 'available' => true]);
+    $booking = Booking::factory()->for($room)->create();
+
+    Sanctum::actingAs($landlord);
+
+    $first = $this->postJson("/api/landlord/bookings/{$booking->id}/approve");
+    $second = $this->postJson("/api/landlord/bookings/{$booking->id}/approve");
+
+    $first->assertOk();
+    $second->assertUnprocessable();
+    expect(AuditLog::where('action', 'booking.approved')->count())->toBe(1);
+});
+
+test('an invalid approve attempt does not write an audit log entry', function () {
+    $landlord = User::factory()->landlord()->create();
+    $room = Room::factory()->for($landlord, 'landlord')->create(['status' => 'approved', 'available' => true]);
+    $booking = Booking::factory()->for($room)->rejected()->create();
+
+    Sanctum::actingAs($landlord);
+    $this->postJson("/api/landlord/bookings/{$booking->id}/approve")->assertUnprocessable();
+
+    expect(AuditLog::where('subject_id', $booking->id)->where('action', 'booking.approved')->exists())->toBeFalse();
+});
+
+test('a student cannot create a duplicate pending booking when submitting the same request twice back to back', function () {
+    $student = User::factory()->student()->create();
+    $room = Room::factory()->create(['status' => 'approved', 'available' => true]);
+    Sanctum::actingAs($student);
+
+    $payload = ['room_id' => $room->id, 'move_in_date' => now()->addWeek()->toDateString(), 'duration_months' => 3];
+
+    $first = $this->postJson('/api/bookings', $payload);
+    $second = $this->postJson('/api/bookings', $payload);
+
+    $first->assertCreated();
+    $second->assertUnprocessable();
+    expect(Booking::where('room_id', $room->id)->where('student_id', $student->id)->count())->toBe(1);
+});
