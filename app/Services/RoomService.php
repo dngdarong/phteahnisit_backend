@@ -28,7 +28,10 @@ class RoomService
                 'status' => RoomStatusEnum::Pending, // every new room starts pending
             ]);
 
-            $this->attachImages($room, $images);
+            // A freshly created room has no images yet, so the starting
+            // display_order is always 0 - skip attachImages()'s count()
+            // query, which would otherwise redundantly re-confirm that.
+            $this->attachImages($room, $images, startOrder: 0);
 
             $this->auditLog->log($landlord, 'room.created', $room);
 
@@ -109,9 +112,9 @@ class RoomService
     /**
      * @param array<UploadedFile> $images
      */
-    private function attachImages(Room $room, array $images): void
+    private function attachImages(Room $room, array $images, ?int $startOrder = null): void
     {
-        $startOrder = $room->images()->count();
+        $startOrder ??= $room->images()->count();
 
         foreach (array_values($images) as $index => $image) {
             $path = $image->store('rooms', 'public');
