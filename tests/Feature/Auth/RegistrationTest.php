@@ -71,3 +71,22 @@ test('registration requires a valid Cambodian-style phone number', function () {
     $response->assertUnprocessable();
     $response->assertJsonValidationErrors('phone');
 });
+
+test('registration attempts are rate limited by email and IP', function () {
+    config([
+        'phteahnisit.auth.register.max_attempts' => 1,
+        'phteahnisit.auth.register.decay_minutes' => 1,
+    ]);
+
+    $payload = [
+        'name' => 'Rate Limited User',
+        'email' => 'register-limit@example.com',
+        'phone' => '12345',
+        'password' => 'Password1',
+        'password_confirmation' => 'Password1',
+    ];
+
+    $this->postJson('/api/auth/register/student', $payload)->assertUnprocessable();
+
+    $this->postJson('/api/auth/register/student', $payload)->assertTooManyRequests();
+});

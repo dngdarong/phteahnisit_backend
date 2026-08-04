@@ -17,6 +17,62 @@ test('a user can log in with correct credentials and receives a token', function
     expect(AuditLog::where('action', 'user.login')->where('actor_id', $user->id)->exists())->toBeTrue();
 });
 
+test('login attempts are rate limited by email and IP', function () {
+    config([
+        'phteahnisit.auth.login.max_attempts' => 1,
+        'phteahnisit.auth.login.decay_minutes' => 1,
+    ]);
+
+    $userA = User::factory()->create([
+        'email' => 'login-limit-a@example.com',
+        'password' => bcrypt('secret123'),
+    ]);
+
+    $userB = User::factory()->create([
+        'email' => 'login-limit-b@example.com',
+        'password' => bcrypt('secret123'),
+    ]);
+
+    $this->postJson('/api/auth/login', [
+        'email' => $userA->email,
+        'password' => 'wrong-password',
+    ])->assertUnprocessable();
+
+    $this->postJson('/api/auth/login', [
+        'email' => $userA->email,
+        'password' => 'wrong-password',
+    ])->assertTooManyRequests();
+
+    $this->postJson('/api/auth/login', [
+        'email' => $userB->email,
+        'password' => 'wrong-password',
+    ])->assertUnprocessable();
+});
+
+test('successful login clears the login limiter', function () {
+    config([
+        'phteahnisit.auth.login.max_attempts' => 2,
+        'phteahnisit.auth.login.decay_minutes' => 1,
+    ]);
+
+    $user = User::factory()->create(['password' => bcrypt('secret123')]);
+
+    $this->postJson('/api/auth/login', [
+        'email' => $user->email,
+        'password' => 'wrong-password',
+    ])->assertUnprocessable();
+
+    $this->postJson('/api/auth/login', [
+        'email' => $user->email,
+        'password' => 'secret123',
+    ])->assertOk();
+
+    $this->postJson('/api/auth/login', [
+        'email' => $user->email,
+        'password' => 'wrong-password',
+    ])->assertUnprocessable();
+});
+
 test('login fails with the wrong password', function () {
     $user = User::factory()->create(['password' => bcrypt('secret123')]);
 

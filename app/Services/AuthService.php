@@ -90,8 +90,13 @@ class AuthService
             ]);
         }
 
+        $expiration = config('sanctum.expiration');
+        $expiresAt = is_numeric($expiration) && (int) $expiration > 0
+            ? now()->addMinutes((int) $expiration)
+            : null;
+
         // Each login creates a new token (Auth doc: Session Rules).
-        $token = $user->createToken('api-token')->plainTextToken;
+        $token = $user->createToken('api-token', ['*'], $expiresAt)->plainTextToken;
 
         $this->auditLog->log($user, 'user.login', $user);
 

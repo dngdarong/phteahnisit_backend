@@ -19,9 +19,9 @@ use Illuminate\Support\Facades\Route;
 | info is visible on room detail by design (see BUSINESS_RULES_CHECK
 | notes) - guests see the same room data a logged-in student would.
 */
-Route::post('/auth/register/student', [AuthController::class, 'registerStudent']);
-Route::post('/auth/register/landlord', [AuthController::class, 'registerLandlord']);
-Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/auth/register/student', [AuthController::class, 'registerStudent'])->middleware('throttle:auth-register');
+Route::post('/auth/register/landlord', [AuthController::class, 'registerLandlord'])->middleware('throttle:auth-register');
+Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:auth-login');
 
 Route::get('/rooms', [RoomController::class, 'index']);
 Route::get('/rooms/map', [RoomController::class, 'map']); // v0.2 - must be registered before {room}

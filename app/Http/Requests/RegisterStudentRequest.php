@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 
 class RegisterStudentRequest extends FormRequest
@@ -10,6 +11,15 @@ class RegisterStudentRequest extends FormRequest
     public function authorize(): bool
     {
         return true; // public endpoint
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->filled('email')) {
+            $this->merge([
+                'email' => Str::of((string) $this->input('email'))->trim()->lower()->toString(),
+            ]);
+        }
     }
 
     public function rules(): array

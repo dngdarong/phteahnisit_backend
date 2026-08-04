@@ -12,6 +12,10 @@ class RoomSeeder extends Seeder
 {
     public function run(): void
     {
+        if (! $this->shouldSeedDemoData() || Room::query()->exists()) {
+            return;
+        }
+
         $landlords = User::where('role', RoleEnum::Landlord)->get();
 
         $landlords->each(function (User $landlord) {
@@ -40,5 +44,11 @@ class RoomSeeder extends Seeder
             ->count(3)
             ->pending()
             ->create();
+    }
+
+    private function shouldSeedDemoData(): bool
+    {
+        return app()->environment(['local', 'testing'])
+            || filter_var(config('phteahnisit.seed_demo_data'), FILTER_VALIDATE_BOOL);
     }
 }
