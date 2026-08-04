@@ -13,6 +13,7 @@ use App\Services\RoomService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 
 class RoomController extends Controller
@@ -28,7 +29,11 @@ class RoomController extends Controller
     public function index(SearchRoomRequest $request): JsonResponse
     {
         $query = Room::query()->searchable()->with('images');
-        $this->eagerLoadFavoriteState($query, $request->user());
+        // This route carries no auth:sanctum middleware (public search per FRS),
+        // so the Bearer token is never resolved via the default guard - the
+        // sanctum guard must be queried explicitly to optionally identify a
+        // logged-in student for is_favorited, without requiring auth for guests.
+        $this->eagerLoadFavoriteState($query, Auth::guard('sanctum')->user());
 
         $query->when($request->validated('keyword'), fn ($q, $kw) => $q->where(
             fn ($q2) => $q2->where('title', 'like', "%{$kw}%")->orWhere('description', 'like', "%{$kw}%")
@@ -58,12 +63,17 @@ class RoomController extends Controller
      */
     public function show(Room $room): RoomResource
     {
-        Gate::authorize('view', $room);
+        // Same public-route guard-resolution note as index() above: this route
+        // has no auth:sanctum middleware, so the authenticated user (needed both
+        // for the pending/rejected-room ownership check below and is_favorited)
+        // must be resolved explicitly via the sanctum guard.
+        $user = Auth::guard('sanctum')->user();
+        Gate::forUser($user)->authorize('view', $room);
 
         $room->load(['images', 'landlord']);
 
-        if (request()->user()?->isStudent()) {
-            $room->load(['favorites' => fn ($q) => $q->where('user_id', request()->user()->id)]);
+        if ($user?->isStudent()) {
+            $room->load(['favorites' => fn ($q) => $q->where('user_id', $user->id)]);
         }
 
         return new RoomResource($room);
