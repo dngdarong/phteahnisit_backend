@@ -18,7 +18,9 @@ class BookingResource extends JsonResource
             // omitting it (it was still eager-loaded) - render that as a
             // clean null instead of a RoomResource full of null fields.
             'room' => $this->whenLoaded('room', fn () => $this->room ? new RoomResource($this->room) : null),
-            'student' => new UserResource($this->whenLoaded('student')),
+            // Same null-safety as `room` above: a soft-deleted student
+            // account still leaves this relation eager-loaded but null.
+            'student' => $this->whenLoaded('student', fn () => $this->student ? new UserResource($this->student) : null),
             'move_in_date' => $this->move_in_date->toDateString(),
             'duration_months' => $this->duration_months,
             'status' => $this->status->value,

@@ -20,8 +20,12 @@ class ConversationResource extends JsonResource
             // soft-deleted since this conversation was started (the thread
             // is intentionally kept alive - see the conversations migration).
             'room' => $this->whenLoaded('room', fn () => $this->room ? new RoomResource($this->room) : null),
-            // The other side of this conversation, relative to whoever is asking.
-            'other_participant' => new UserResource($isStudent ? $this->whenLoaded('landlord') : $this->whenLoaded('student')),
+            // The other side of this conversation, relative to whoever is
+            // asking. Same null-safety as `room` above: a soft-deleted
+            // participant leaves the relation eager-loaded but null.
+            'other_participant' => $isStudent
+                ? $this->whenLoaded('landlord', fn () => $this->landlord ? new UserResource($this->landlord) : null)
+                : $this->whenLoaded('student', fn () => $this->student ? new UserResource($this->student) : null),
             'last_message_at' => $this->last_message_at,
             'unread_count' => $this->when(
                 $this->relationLoaded('messages'),
