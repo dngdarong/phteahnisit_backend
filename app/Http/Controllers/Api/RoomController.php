@@ -8,7 +8,9 @@ use App\Http\Requests\StoreRoomRequest;
 use App\Http\Requests\UpdateRoomRequest;
 use App\Http\Resources\RoomResource;
 use App\Models\Room;
+use App\Models\User;
 use App\Services\RoomService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -26,6 +28,7 @@ class RoomController extends Controller
     public function index(SearchRoomRequest $request): JsonResponse
     {
         $query = Room::query()->searchable()->with('images');
+        $this->eagerLoadFavoriteState($query, $request->user());
 
         $query->when($request->validated('keyword'), fn ($q, $kw) => $q->where(
             fn ($q2) => $q2->where('title', 'like', "%{$kw}%")->orWhere('description', 'like', "%{$kw}%")
@@ -57,7 +60,36 @@ class RoomController extends Controller
     {
         Gate::authorize('view', $room);
 
-        return new RoomResource($room->load(['images', 'landlord']));
+        $room->load(['images', 'landlord']);
+
+        if (request()->user()?->isStudent()) {
+            $room->load(['favorites' => fn ($q) => $q->where('user_id', request()->user()->id)]);
+        }
+
+        return new RoomResource($room);
+    }
+
+    /**
+     * v0.2: eager-loads `favorites` scoped to the current student only,
+     * so RoomResource::is_favorited can be computed without an N+1 query
+     * or leaking who else favorited the room.
+     */
+    private function eagerLoadFavoriteState(Builder $query, ?User $user): void
+    {
+        if ($user?->isStudent()) {
+            $query->with(['favorites' => fn ($q) => $q->where('user_id', $user->id)]);
+        }
+    }
+
+    /** v0.2: same visibility as search, restricted to rooms with a pinned location. */
+    public function map(SearchRoomRequest $request): JsonResponse
+    {
+        $query = Room::query()->onMap()->with('images');
+
+        $query->when($request->validated('province'), fn ($q, $v) => $q->where('province', $v));
+        $query->when($request->validated('room_type'), fn ($q, $v) => $q->where('room_type', $v));
+
+        return RoomResource::collection($query->get())->response();
     }
 
     /** Landlord's own listings, all statuses (Business Rules: "View only their own listings"). */

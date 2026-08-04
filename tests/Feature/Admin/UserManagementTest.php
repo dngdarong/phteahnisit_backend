@@ -69,3 +69,129 @@ test('an admin creating another admin is audit logged', function () {
     $response->assertJsonPath('data.role', 'admin');
     expect(AuditLog::where('action', 'user.admin_created')->exists())->toBeTrue();
 });
+
+// v0.2 - general create/view/update/delete
+
+test('an admin can create a landlord via the general endpoint, audit logged', function () {
+    Sanctum::actingAs(User::factory()->admin()->create());
+
+    $response = $this->postJson('/api/admin/users', [
+        'name' => 'New Landlord', 'email' => 'newlandlord@example.com', 'phone' => '012345678',
+        'password' => 'Password1', 'password_confirmation' => 'Password1', 'role' => 'landlord',
+    ]);
+
+    $response->assertCreated();
+    $response->assertJsonPath('data.role', 'landlord');
+    expect(AuditLog::where('action', 'user.created_by_admin')->exists())->toBeTrue();
+});
+
+test('an admin can create a student via the general endpoint', function () {
+    Sanctum::actingAs(User::factory()->admin()->create());
+
+    $response = $this->postJson('/api/admin/users', [
+        'name' => 'New Student', 'email' => 'newstudent@example.com', 'phone' => '012345678',
+        'password' => 'Password1', 'password_confirmation' => 'Password1', 'role' => 'student',
+    ]);
+
+    $response->assertCreated();
+    $response->assertJsonPath('data.role', 'student');
+});
+
+test('creating an admin via the general endpoint uses the createAdmin gate and audit action', function () {
+    Sanctum::actingAs(User::factory()->admin()->create());
+
+    $response = $this->postJson('/api/admin/users', [
+        'name' => 'New Admin', 'email' => 'anotheradmin@example.com', 'phone' => '012345678',
+        'password' => 'Password1', 'password_confirmation' => 'Password1', 'role' => 'admin',
+    ]);
+
+    $response->assertCreated();
+    $response->assertJsonPath('data.role', 'admin');
+    expect(AuditLog::where('action', 'user.admin_created')->exists())->toBeTrue();
+});
+
+test('a non-admin cannot create a user via the general endpoint', function () {
+    Sanctum::actingAs(User::factory()->landlord()->create());
+
+    $this->postJson('/api/admin/users', [
+        'name' => 'New Student', 'email' => 'blocked@example.com', 'phone' => '012345678',
+        'password' => 'Password1', 'password_confirmation' => 'Password1', 'role' => 'student',
+    ])->assertForbidden();
+});
+
+test('an admin can view a single user with rooms/bookings/favorites counts', function () {
+    $target = User::factory()->landlord()->create();
+    Sanctum::actingAs(User::factory()->admin()->create());
+
+    $response = $this->getJson("/api/admin/users/{$target->id}");
+
+    $response->assertOk();
+    $response->assertJsonPath('data.id', $target->id);
+    $response->assertJsonStructure(['data' => ['rooms_count', 'bookings_count', 'favorites_count']]);
+});
+
+test('a non-admin cannot view a single user', function () {
+    $target = User::factory()->create();
+    Sanctum::actingAs(User::factory()->landlord()->create());
+
+    $this->getJson("/api/admin/users/{$target->id}")->assertForbidden();
+});
+
+test('an admin can update another user\'s fields, audit logged', function () {
+    $target = User::factory()->student()->create(['name' => 'Old Name']);
+    Sanctum::actingAs(User::factory()->admin()->create());
+
+    $response = $this->putJson("/api/admin/users/{$target->id}", ['name' => 'New Name']);
+
+    $response->assertOk();
+    $response->assertJsonPath('data.name', 'New Name');
+    expect(AuditLog::where('action', 'user.updated')->exists())->toBeTrue();
+});
+
+test('sending a password on the update endpoint is silently ignored, not applied', function () {
+    $target = User::factory()->student()->create();
+    $originalHash = $target->password;
+    Sanctum::actingAs(User::factory()->admin()->create());
+
+    $response = $this->putJson("/api/admin/users/{$target->id}", [
+        'name' => $target->name,
+        'password' => 'BrandNewPassword1',
+    ]);
+
+    $response->assertOk();
+    expect($target->fresh()->password)->toBe($originalHash);
+});
+
+test('a non-admin cannot update a user', function () {
+    $target = User::factory()->create();
+    Sanctum::actingAs(User::factory()->landlord()->create());
+
+    $this->putJson("/api/admin/users/{$target->id}", ['name' => 'Hacked'])->assertForbidden();
+});
+
+test('an admin can soft delete another user, audit logged', function () {
+    $target = User::factory()->create();
+    Sanctum::actingAs(User::factory()->admin()->create());
+
+    $response = $this->deleteJson("/api/admin/users/{$target->id}");
+
+    $response->assertOk();
+    expect(User::find($target->id))->toBeNull(); // excluded by default scope
+    expect(User::withTrashed()->find($target->id))->not->toBeNull(); // still in the DB
+    expect(AuditLog::where('action', 'user.deleted')->exists())->toBeTrue();
+});
+
+test('an admin cannot delete their own account', function () {
+    $admin = User::factory()->admin()->create();
+    Sanctum::actingAs($admin);
+
+    $this->deleteJson("/api/admin/users/{$admin->id}")->assertForbidden();
+    expect(User::find($admin->id))->not->toBeNull();
+});
+
+test('a non-admin cannot delete a user', function () {
+    $target = User::factory()->create();
+    Sanctum::actingAs(User::factory()->landlord()->create());
+
+    $this->deleteJson("/api/admin/users/{$target->id}")->assertForbidden();
+});

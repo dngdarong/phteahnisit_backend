@@ -54,6 +54,27 @@ class User extends Authenticatable
         return $this->hasMany(AuditLog::class, 'actor_id');
     }
 
+    public function favorites(): HasMany
+    {
+        return $this->hasMany(Favorite::class);
+    }
+
+    /** Only meaningful when role = student - enforced in the Policy layer, same pattern as rooms(). */
+    public function bookings(): HasMany
+    {
+        return $this->hasMany(Booking::class, 'student_id');
+    }
+
+    public function conversationsAsStudent(): HasMany
+    {
+        return $this->hasMany(Conversation::class, 'student_id');
+    }
+
+    public function conversationsAsLandlord(): HasMany
+    {
+        return $this->hasMany(Conversation::class, 'landlord_id');
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === RoleEnum::Admin;

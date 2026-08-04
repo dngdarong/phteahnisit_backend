@@ -39,6 +39,22 @@ class AuthService
         return $admin;
     }
 
+    /**
+     * v0.2: general-purpose admin-creates-user path (any role except
+     * admin - that stays on createAdmin() above, which has its own
+     * Gate::authorize('createAdmin', ...) check and distinct
+     * 'user.admin_created' audit action since granting admin is more
+     * sensitive than creating a landlord/student account).
+     */
+    public function createUser(User $creator, array $data, RoleEnum $role): User
+    {
+        $user = $this->register($data, $role);
+
+        $this->auditLog->log($creator, 'user.created_by_admin', $user, ['role' => $role->value]);
+
+        return $user;
+    }
+
     private function register(array $data, RoleEnum $role): User
     {
         $user = User::create([
@@ -74,8 +90,13 @@ class AuthService
             ]);
         }
 
+        $expiration = config('sanctum.expiration');
+        $expiresAt = is_numeric($expiration) && (int) $expiration > 0
+            ? now()->addMinutes((int) $expiration)
+            : null;
+
         // Each login creates a new token (Auth doc: Session Rules).
-        $token = $user->createToken('api-token')->plainTextToken;
+        $token = $user->createToken('api-token', ['*'], $expiresAt)->plainTextToken;
 
         $this->auditLog->log($user, 'user.login', $user);
 
