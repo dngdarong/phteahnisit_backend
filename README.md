@@ -1,4 +1,4 @@
-# phteahnisit — Backend Architecture (v0.1 MVP + v0.2, hardened through Phase 5)
+# phteahnisit — Backend Architecture (v0.1 MVP + v0.2, hardened through Phase 6)
 
 ## 1. Setup
 
@@ -139,7 +139,7 @@ section 9 for the full v0.2 schema/service/policy breakdown. Payments,
 reviews/ratings, and a standalone notifications system remain out of
 scope.
 
-## 9. Hardening (Phases 1–5)
+## 9. Hardening (Phases 1–6)
 
 Post-v0.2 hardening pass, business logic and API contracts unchanged:
 
@@ -158,6 +158,11 @@ Post-v0.2 hardening pass, business logic and API contracts unchanged:
   fields (`exception`/`file`/`line`/`trace`) from `api/*` JSON error
   responses.
 - **Phase 5**: frontend-only, no backend changes.
+- **Phase 6 — Test coverage**: closed gaps in FormRequest field-validation
+  boundaries, pagination-envelope shape, and 404 consistency across
+  resource types beyond Room (`tests/Feature/Validation/*`,
+  `tests/Feature/Api/PaginationAndNotFoundTest.php`). No application
+  code changed — test-only.
 
-No new backend test count is asserted here — see the test suite for
-current pass/fail counts at any given commit.
+147/147 Pest tests passing as of this commit (`php artisan test`); see
+the test suite for current pass/fail counts at any later commit.
