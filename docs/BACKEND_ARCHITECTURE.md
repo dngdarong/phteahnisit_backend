@@ -250,3 +250,10 @@ dependency: the map endpoint returns coordinate data; the frontend
 renders it as a pin-list with links out to Google Maps rather than an
 embedded interactive map, per an explicit scope decision to avoid
 adding a new third-party dependency for v0.2.
+
+## 10. Hardening (Phases 1–5)
+
+A post-v0.2 hardening pass — security headers/rate limiting,
+transactional booking safety, soft-delete null-safety on Resources,
+standardized API error responses. No schema, contract, or business-
+rule changes. See `README.md` section 9 for the itemized summary.

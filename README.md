@@ -1,4 +1,4 @@
-# phteahnisit — Backend Architecture (v0.1 MVP)
+# phteahnisit — Backend Architecture (v0.1 MVP + v0.2, hardened through Phase 5)
 
 ## 1. Setup
 
@@ -129,10 +129,35 @@ everything else → 500 with a generic message in production
 (`APP_DEBUG=false`), matching the FRS Error Rules ("never expose
 technical errors").
 
-## 8. What's deliberately not here
+## 8. What's deliberately not here (v0.1 scope note)
 
-Per the FRS/Business Rules "Future Compatibility" sections: no
+At v0.1, per the FRS/Business Rules "Future Compatibility" sections: no
 Favorites, Booking, Chat, Notifications, Reviews, Payments, or Maps
-code exists anywhere in this package. The schema and route structure
-were checked in the prior review turns to confirm none of those need a
-redesign of `users`/`rooms`/`room_images`/`audit_logs` to bolt on later.
+code existed anywhere in this package. v0.2 built four of those
+(Favorites, Bookings, Chat, Map) — see `docs/BACKEND_ARCHITECTURE.md`
+section 9 for the full v0.2 schema/service/policy breakdown. Payments,
+reviews/ratings, and a standalone notifications system remain out of
+scope.
+
+## 9. Hardening (Phases 1–5)
+
+Post-v0.2 hardening pass, business logic and API contracts unchanged:
+
+- **Phase 1 — Security**: `AddSecurityHeaders` middleware, auth rate
+  limiting (`AuthRateLimiter`), dedicated security log channel.
+- **Phase 2 — Booking workflow**: `BookingService` create/approve/
+  reject/cancel wrapped in `DB::transaction()` + `lockForUpdate()`,
+  with explicit pending-only guards rejecting invalid state
+  transitions (422) instead of silently succeeding.
+- **Phase 3 — Data integrity**: `RoomResource`, `BookingResource`, and
+  `ConversationResource` now return `null` (not an all-null object) for
+  a relation whose parent row was soft-deleted.
+- **Phase 4 — API standardization**: same null-safety extended to
+  `BookingResource.student` / `ConversationResource.other_participant`;
+  a scoped exception-response hook in `bootstrap/app.php` strips debug
+  fields (`exception`/`file`/`line`/`trace`) from `api/*` JSON error
+  responses.
+- **Phase 5**: frontend-only, no backend changes.
+
+No new backend test count is asserted here — see the test suite for
+current pass/fail counts at any given commit.
