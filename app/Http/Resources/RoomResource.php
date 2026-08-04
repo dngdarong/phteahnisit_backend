@@ -32,11 +32,14 @@ class RoomResource extends JsonResource
             'is_favorited' => $this->when($this->relationLoaded('favorites'), fn () => $this->favorites->isNotEmpty()),
             // Contact info is intentionally public per FRS Room Detail
             // Module (no auth gate on landlord contact for v0.1).
-            'landlord' => $this->whenLoaded('landlord', fn () => [
+            // A soft-deleted landlord account resolves the relation to null
+            // rather than omitting it (it was still eager-loaded) - render
+            // that as a clean null instead of an object of null fields.
+            'landlord' => $this->whenLoaded('landlord', fn () => $this->landlord ? [
                 'id' => $this->landlord->id,
                 'name' => $this->landlord->name,
                 'phone' => $this->landlord->phone,
-            ]),
+            ] : null),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

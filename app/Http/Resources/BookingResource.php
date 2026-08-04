@@ -14,7 +14,10 @@ class BookingResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'room' => new RoomResource($this->whenLoaded('room')),
+            // A soft-deleted room resolves the relation to null rather than
+            // omitting it (it was still eager-loaded) - render that as a
+            // clean null instead of a RoomResource full of null fields.
+            'room' => $this->whenLoaded('room', fn () => $this->room ? new RoomResource($this->room) : null),
             'student' => new UserResource($this->whenLoaded('student')),
             'move_in_date' => $this->move_in_date->toDateString(),
             'duration_months' => $this->duration_months,
