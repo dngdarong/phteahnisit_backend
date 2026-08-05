@@ -20,6 +20,17 @@ test('a non-admin cannot list users', function () {
     $this->getJson('/api/admin/users')->assertForbidden();
 });
 
+test('an admin can search users by a partial, case-insensitive name match', function () {
+    User::factory()->create(['name' => 'Alice Wonderland']);
+    User::factory()->create(['name' => 'Bob Builder']);
+    Sanctum::actingAs(User::factory()->admin()->create());
+
+    $response = $this->getJson('/api/admin/users?search=wonder');
+
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.name'))->toBe('Alice Wonderland');
+});
+
 test('an admin can disable another user, which is audit logged', function () {
     $target = User::factory()->create();
     Sanctum::actingAs(User::factory()->admin()->create());

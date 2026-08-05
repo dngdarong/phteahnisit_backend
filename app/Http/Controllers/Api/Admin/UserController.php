@@ -30,6 +30,7 @@ class UserController extends Controller
         $query = User::query();
         $query->when($request->query('role'), fn ($q, $role) => $q->where('role', $role));
         $query->when($request->query('status'), fn ($q, $status) => $q->where('status', $status));
+        $query->when($request->query('search'), fn ($q, $search) => $q->where('name', 'like', '%'.$search.'%'));
 
         return UserResource::collection($query->latest()->paginate(20))->response();
     }
