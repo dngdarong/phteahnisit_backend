@@ -31,6 +31,11 @@ class UserFactory extends Factory
         return $this->state(fn () => ['role' => RoleEnum::Admin]);
     }
 
+    public function superAdmin(): static
+    {
+        return $this->state(fn () => ['role' => RoleEnum::SuperAdmin]);
+    }
+
     public function landlord(): static
     {
         return $this->state(fn () => ['role' => RoleEnum::Landlord]);

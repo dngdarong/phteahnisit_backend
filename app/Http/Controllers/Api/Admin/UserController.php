@@ -62,9 +62,9 @@ class UserController extends Controller
     {
         $role = RoleEnum::from($request->validated('role'));
 
-        if ($role === RoleEnum::Admin) {
+        if (in_array($role, [RoleEnum::Admin, RoleEnum::SuperAdmin], true)) {
             Gate::authorize('createAdmin', User::class);
-            $user = $this->authService->createAdmin($request->user(), $request->validated());
+            $user = $this->authService->createAdmin($request->user(), $request->validated(), $role);
         } else {
             $user = $this->authService->createUser($request->user(), $request->validated(), $role);
         }

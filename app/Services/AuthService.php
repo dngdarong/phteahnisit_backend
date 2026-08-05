@@ -25,26 +25,27 @@ class AuthService
     }
 
     /**
-     * Admin-only path. Not exposed on any public route - the controller
-     * calling this must already be behind role:admin middleware and
-     * UserPolicy::createAdmin (Business Rules: "Only an existing Admin
-     * can create another Admin").
+     * Super-Admin-only path (grants an admin-tier role). Not exposed on
+     * any public route - the controller calling this must already be
+     * behind role:admin,super_admin middleware and
+     * UserPolicy::createAdmin (Business Rules: "Only a Super Admin can
+     * create/edit/delete/promote another Admin").
      */
-    public function createAdmin(User $creator, array $data): User
+    public function createAdmin(User $creator, array $data, RoleEnum $role = RoleEnum::Admin): User
     {
-        $admin = $this->register($data, RoleEnum::Admin);
+        $admin = $this->register($data, $role);
 
-        $this->auditLog->log($creator, 'user.admin_created', $admin);
+        $this->auditLog->log($creator, 'user.admin_created', $admin, ['role' => $role->value]);
 
         return $admin;
     }
 
     /**
      * v0.2: general-purpose admin-creates-user path (any role except
-     * admin - that stays on createAdmin() above, which has its own
-     * Gate::authorize('createAdmin', ...) check and distinct
-     * 'user.admin_created' audit action since granting admin is more
-     * sensitive than creating a landlord/student account).
+     * admin/super_admin - those stay on createAdmin() above, which has
+     * its own Gate::authorize('createAdmin', ...) check and distinct
+     * 'user.admin_created' audit action since granting an admin-tier
+     * role is more sensitive than creating a landlord/student account).
      */
     public function createUser(User $creator, array $data, RoleEnum $role): User
     {

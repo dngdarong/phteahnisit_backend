@@ -19,6 +19,9 @@ return [
         'admin_name' => env('DEMO_ADMIN_NAME', 'Admin Phteahnisit'),
         'admin_email' => env('DEMO_ADMIN_EMAIL', 'admin@phteahnisit.test'),
         'admin_phone' => env('DEMO_ADMIN_PHONE', '012345678'),
+        'super_admin_name' => env('DEMO_SUPER_ADMIN_NAME', 'Super Admin Phteahnisit'),
+        'super_admin_email' => env('DEMO_SUPER_ADMIN_EMAIL', 'superadmin@phteahnisit.test'),
+        'super_admin_phone' => env('DEMO_SUPER_ADMIN_PHONE', '012345679'),
     ],
 
     'auth' => [

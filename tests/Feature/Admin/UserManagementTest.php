@@ -57,8 +57,8 @@ test('only an admin can create another admin account', function () {
     ])->assertForbidden();
 });
 
-test('an admin creating another admin is audit logged', function () {
-    Sanctum::actingAs(User::factory()->admin()->create());
+test('a super admin creating another admin is audit logged', function () {
+    Sanctum::actingAs(User::factory()->superAdmin()->create());
 
     $response = $this->postJson('/api/admin/users/admins', [
         'name' => 'New Admin', 'email' => 'newadmin@example.com', 'phone' => '012345678',
@@ -68,6 +68,15 @@ test('an admin creating another admin is audit logged', function () {
     $response->assertCreated();
     $response->assertJsonPath('data.role', 'admin');
     expect(AuditLog::where('action', 'user.admin_created')->exists())->toBeTrue();
+});
+
+test('a regular admin (not super admin) cannot create another admin account', function () {
+    Sanctum::actingAs(User::factory()->admin()->create());
+
+    $this->postJson('/api/admin/users/admins', [
+        'name' => 'New Admin', 'email' => 'blockedadmin@example.com', 'phone' => '012345678',
+        'password' => 'Password1', 'password_confirmation' => 'Password1',
+    ])->assertForbidden();
 });
 
 // v0.2 - general create/view/update/delete
@@ -98,7 +107,7 @@ test('an admin can create a student via the general endpoint', function () {
 });
 
 test('creating an admin via the general endpoint uses the createAdmin gate and audit action', function () {
-    Sanctum::actingAs(User::factory()->admin()->create());
+    Sanctum::actingAs(User::factory()->superAdmin()->create());
 
     $response = $this->postJson('/api/admin/users', [
         'name' => 'New Admin', 'email' => 'anotheradmin@example.com', 'phone' => '012345678',
@@ -108,6 +117,27 @@ test('creating an admin via the general endpoint uses the createAdmin gate and a
     $response->assertCreated();
     $response->assertJsonPath('data.role', 'admin');
     expect(AuditLog::where('action', 'user.admin_created')->exists())->toBeTrue();
+});
+
+test('a regular admin cannot create an admin via the general endpoint', function () {
+    Sanctum::actingAs(User::factory()->admin()->create());
+
+    $this->postJson('/api/admin/users', [
+        'name' => 'New Admin', 'email' => 'blockedgeneral@example.com', 'phone' => '012345678',
+        'password' => 'Password1', 'password_confirmation' => 'Password1', 'role' => 'admin',
+    ])->assertForbidden();
+});
+
+test('a super admin can create another super admin via the general endpoint', function () {
+    Sanctum::actingAs(User::factory()->superAdmin()->create());
+
+    $response = $this->postJson('/api/admin/users', [
+        'name' => 'New Super Admin', 'email' => 'newsuperadmin@example.com', 'phone' => '012345678',
+        'password' => 'Password1', 'password_confirmation' => 'Password1', 'role' => 'super_admin',
+    ]);
+
+    $response->assertCreated();
+    $response->assertJsonPath('data.role', 'super_admin');
 });
 
 test('a non-admin cannot create a user via the general endpoint', function () {
@@ -194,4 +224,71 @@ test('a non-admin cannot delete a user', function () {
     Sanctum::actingAs(User::factory()->landlord()->create());
 
     $this->deleteJson("/api/admin/users/{$target->id}")->assertForbidden();
+});
+
+// Super Admin vs. Admin - admin-tier targets (admin/super_admin) can only
+// be managed by a Super Admin; a regular Admin can still manage landlord/
+// student accounts normally.
+
+test('a regular admin cannot update another admin\'s fields', function () {
+    $target = User::factory()->admin()->create(['name' => 'Old Name']);
+    Sanctum::actingAs(User::factory()->admin()->create());
+
+    $this->putJson("/api/admin/users/{$target->id}", ['name' => 'New Name'])->assertForbidden();
+});
+
+test('a super admin can update another admin\'s fields', function () {
+    $target = User::factory()->admin()->create(['name' => 'Old Name']);
+    Sanctum::actingAs(User::factory()->superAdmin()->create());
+
+    $response = $this->putJson("/api/admin/users/{$target->id}", ['name' => 'New Name']);
+
+    $response->assertOk();
+    $response->assertJsonPath('data.name', 'New Name');
+});
+
+test('a regular admin cannot disable another admin', function () {
+    $target = User::factory()->admin()->create();
+    Sanctum::actingAs(User::factory()->admin()->create());
+
+    $this->postJson("/api/admin/users/{$target->id}/disable")->assertForbidden();
+});
+
+test('a super admin can disable a regular admin', function () {
+    $target = User::factory()->admin()->create();
+    Sanctum::actingAs(User::factory()->superAdmin()->create());
+
+    $this->postJson("/api/admin/users/{$target->id}/disable")->assertOk();
+});
+
+test('a regular admin cannot delete another admin', function () {
+    $target = User::factory()->admin()->create();
+    Sanctum::actingAs(User::factory()->admin()->create());
+
+    $this->deleteJson("/api/admin/users/{$target->id}")->assertForbidden();
+    expect(User::find($target->id))->not->toBeNull();
+});
+
+test('a super admin can delete a regular admin', function () {
+    $target = User::factory()->admin()->create();
+    Sanctum::actingAs(User::factory()->superAdmin()->create());
+
+    $this->deleteJson("/api/admin/users/{$target->id}")->assertOk();
+    expect(User::find($target->id))->toBeNull();
+});
+
+test('a super admin cannot disable or delete their own account', function () {
+    $superAdmin = User::factory()->superAdmin()->create();
+    Sanctum::actingAs($superAdmin);
+
+    $this->postJson("/api/admin/users/{$superAdmin->id}/disable")->assertForbidden();
+    $this->deleteJson("/api/admin/users/{$superAdmin->id}")->assertForbidden();
+});
+
+test('a super admin can access admin-only routes alongside a regular admin', function () {
+    User::factory()->landlord()->count(2)->create();
+    Sanctum::actingAs(User::factory()->superAdmin()->create());
+
+    $this->getJson('/api/admin/users')->assertOk();
+    $this->getJson('/api/admin/rooms/pending')->assertOk();
 });

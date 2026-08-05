@@ -17,6 +17,7 @@ class UserSeeder extends Seeder
         }
 
         $this->seedAdmin();
+        $this->seedSuperAdmin();
 
         $this->seedDemoUsers([
             'Sok Dara', 'Chan Sopheap', 'Heng Vutha', 'Kim Sreymom',
@@ -45,6 +46,20 @@ class UserSeeder extends Seeder
                 'password' => config('phteahnisit.demo.default_password'),
                 'phone' => config('phteahnisit.demo.admin_phone'),
                 'role' => RoleEnum::Admin,
+                'status' => UserStatusEnum::Active,
+            ]
+        );
+    }
+
+    private function seedSuperAdmin(): void
+    {
+        User::updateOrCreate(
+            ['email' => config('phteahnisit.demo.super_admin_email')],
+            [
+                'name' => config('phteahnisit.demo.super_admin_name'),
+                'password' => config('phteahnisit.demo.default_password'),
+                'phone' => config('phteahnisit.demo.super_admin_phone'),
+                'role' => RoleEnum::SuperAdmin,
                 'status' => UserStatusEnum::Active,
             ]
         );

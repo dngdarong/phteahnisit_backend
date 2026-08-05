@@ -23,7 +23,7 @@ return new class extends Migration
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->string('phone', 20)->nullable();
-            $table->enum('role', ['admin', 'landlord', 'student'])->default('student');
+            $table->enum('role', ['admin', 'landlord', 'student', 'super_admin'])->default('student');
             $table->enum('status', ['active', 'inactive'])->default('active');
             $table->rememberToken();
             $table->timestamps();

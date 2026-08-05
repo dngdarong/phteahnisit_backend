@@ -75,9 +75,15 @@ class User extends Authenticatable
         return $this->hasMany(Conversation::class, 'landlord_id');
     }
 
+    /** True for both Admin and SuperAdmin - SuperAdmin retains every Admin capability, plus admin-account management. */
     public function isAdmin(): bool
     {
-        return $this->role === RoleEnum::Admin;
+        return in_array($this->role, [RoleEnum::Admin, RoleEnum::SuperAdmin], true);
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->role === RoleEnum::SuperAdmin;
     }
 
     public function isLandlord(): bool

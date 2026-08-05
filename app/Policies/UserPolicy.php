@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\RoleEnum;
 use App\Models\User;
 
 class UserPolicy
@@ -20,22 +21,51 @@ class UserPolicy
     {
         // A user may edit their own profile via ProfileController; this
         // policy governs the *admin* user-management endpoints only.
+        if ($this->isAdminTier($target)) {
+            return $user->isSuperAdmin();
+        }
+
         return $user->isAdmin();
     }
 
     public function disable(User $user, User $target): bool
     {
-        return $user->isAdmin() && $user->id !== $target->id; // can't disable self
+        if ($user->id === $target->id) {
+            return false; // can't disable self
+        }
+
+        if ($this->isAdminTier($target)) {
+            return $user->isSuperAdmin();
+        }
+
+        return $user->isAdmin();
     }
 
     public function delete(User $user, User $target): bool
     {
-        return $user->isAdmin() && $user->id !== $target->id; // can't delete self, same as disable
+        if ($user->id === $target->id) {
+            return false; // can't delete self, same as disable
+        }
+
+        if ($this->isAdminTier($target)) {
+            return $user->isSuperAdmin();
+        }
+
+        return $user->isAdmin();
     }
 
+    /**
+     * Guards creating a new Admin or SuperAdmin account. Business Rules
+     * updated: "Only a Super Admin can create/edit/delete/promote another
+     * Admin" - regular Admins can no longer grant admin-tier roles.
+     */
     public function createAdmin(User $user): bool
     {
-        // Business Rules: "Only an existing Admin can create another Admin."
-        return $user->isAdmin();
+        return $user->isSuperAdmin();
+    }
+
+    private function isAdminTier(User $target): bool
+    {
+        return in_array($target->role, [RoleEnum::Admin, RoleEnum::SuperAdmin], true);
     }
 }

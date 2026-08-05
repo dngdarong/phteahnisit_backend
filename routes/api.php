@@ -91,7 +91,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     | per the permission matrix in docs/BACKEND_ARCHITECTURE.md #5.
     |----------------------------------------------------------------
     */
-    Route::middleware('role:landlord,admin')->group(function () {
+    Route::middleware('role:landlord,admin,super_admin')->group(function () {
         Route::put('/rooms/{room}', [RoomController::class, 'update']);
         Route::delete('/rooms/{room}', [RoomController::class, 'destroy']);
     });
@@ -101,7 +101,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     | Admin-only
     |----------------------------------------------------------------
     */
-    Route::middleware('role:admin')->prefix('admin')->group(function () {
+    Route::middleware('role:admin,super_admin')->prefix('admin')->group(function () {
         Route::get('/rooms/pending', [AdminRoomController::class, 'pending']);
         Route::get('/rooms', [AdminRoomController::class, 'index']);
         Route::post('/rooms/{room}/approve', [AdminRoomController::class, 'approve']);
