@@ -48,5 +48,25 @@ class AppServiceProvider extends ServiceProvider
                     ], 429, $headers);
                 });
         });
+
+        /*
+         * General-purpose limit applied to every /api/* route (see
+         * bootstrap/app.php's `throttle:api` on the api middleware group).
+         * Login/register keep their own tighter limiters above on top of
+         * this - defense in depth, same reasoning used throughout this
+         * codebase rather than relying on a single layer.
+         */
+        RateLimiter::for('api', function (Request $request) {
+            $limit = max(1, (int) config('phteahnisit.api.max_attempts', 60));
+            $decayMinutes = max(1, (int) config('phteahnisit.api.decay_minutes', 1));
+
+            return Limit::perMinutes($decayMinutes, $limit)
+                ->by($request->user()?->id ? 'user:'.$request->user()->id : 'ip:'.($request->ip() ?? 'unknown'))
+                ->response(function (Request $request, array $headers) {
+                    return response()->json([
+                        'message' => 'Too many requests. Please try again later.',
+                    ], 429, $headers);
+                });
+        });
     }
 }

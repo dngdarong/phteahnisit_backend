@@ -35,6 +35,19 @@ return [
         ],
     ],
 
+    /*
+    | General-purpose limit applied to the whole API (bootstrap/app.php),
+    | on top of - not instead of - the tighter auth-login/auth-register
+    | limits above. Previously only login/register were throttled at all;
+    | every other endpoint (public room search included) had no request
+    | limit whatsoever. Keyed by user id when authenticated, IP otherwise
+    | (see RateLimiter::for('api', ...) in AppServiceProvider).
+    */
+    'api' => [
+        'max_attempts' => (int) env('API_RATE_LIMIT_MAX_ATTEMPTS', 60),
+        'decay_minutes' => (int) env('API_RATE_LIMIT_DECAY_MINUTES', 1),
+    ],
+
     'security_headers' => [
         'x_frame_options' => env('SECURITY_X_FRAME_OPTIONS', 'DENY'),
         'referrer_policy' => env('SECURITY_REFERRER_POLICY', 'strict-origin-when-cross-origin'),
