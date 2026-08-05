@@ -35,6 +35,10 @@ class RoomController extends Controller
     {
         $query = Room::query()->with(['images', 'landlord']);
         $query->when($request->query('status'), fn ($q, $status) => $q->where('status', $status));
+        $query->when(
+            $request->query('search'),
+            fn ($q, $search) => $q->whereHas('landlord', fn ($lq) => $lq->where('name', 'like', '%'.$search.'%'))
+        );
 
         return RoomResource::collection($query->latest()->paginate(20))->response();
     }

@@ -68,3 +68,16 @@ test('the pending queue only lists pending rooms', function () {
 
     expect($response->json('data'))->toHaveCount(2);
 });
+
+test('an admin can search rooms by a partial, case-insensitive owner name match', function () {
+    $alice = User::factory()->landlord()->create(['name' => 'Alice Wonderland']);
+    $bob = User::factory()->landlord()->create(['name' => 'Bob Builder']);
+    Room::factory()->for($alice, 'landlord')->create();
+    Room::factory()->for($bob, 'landlord')->create();
+    Sanctum::actingAs(User::factory()->admin()->create());
+
+    $response = $this->getJson('/api/admin/rooms?search=wonder');
+
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.landlord.name'))->toBe('Alice Wonderland');
+});
